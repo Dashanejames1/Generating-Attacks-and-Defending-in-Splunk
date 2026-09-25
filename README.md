@@ -3,14 +3,14 @@
 
 **Author:** Dashane James  
 **Lab Environment:** [e.g. VMware Workstation | Kali Linux | Metasploitable 2]  
-**Purpose:** [The goal of this repository is to use Nmap scripts for targeted vulnerability checks, bridging network scanning and vulnerability assesment.]
+**Purpose:** [The goal of this repository is to demonstrate the core SOC analyst workflow of generating attack traffic, ingesting logs into a SIEM, and building detection rules to identify threats. Rather than simply running tools, the focus is on the defensive side. Understanding what attack patterns look like in log data and translating that into actionable Splunk alerts.]
 **Status:** 🔵 Completed
 
 ---
 
 ## 📋 Overview
 
-[This repository documents combining the network scanning of Nmap with the task of vulnerabIlity assessments. This creates a simpler way to both scan a network and identify vulnerabilities simultaneously which is very useful for a cybersecurity analyst or penetration tester.]
+[This repository documents a hands-on SOC analyst simulation where real attack traffic was generated in a controlled lab environment and detected using Splunk SIEM. I performed two distinct attack types a network port scan and an SSH brute force attack while simultaneously capturing all network traffic with TCPDump. The captured data was then imported into Splunk where I built SPL detection queries and configured automated alerts to identify both attack patterns. This project demonstrates the complete SOC analyst workflow: generate attack traffic, ingest logs into a SIEM, write detection logic, and set alert thresholds ]
 
 ---
 
@@ -57,6 +57,8 @@
 
 ### 1. [Run Nmap scan from Kali while capturing with TCPDump]
 
+[This tasks required that I generate real network reconnaissance traffic while simultaneously capturing all packets at the network level. This simulates what an attacker's port scan looks like from a packet capture perspective and produces the raw data needed for SIEM analysis.]
+
 
 # Command used
 [sudo tcpdump -i eth0 -w ~/lab_capture.pcap] -tcp dump
@@ -75,48 +77,152 @@ For this task I opened two terminal windows simultaneously. In the first termina
 
 
 
-### 2. [Import TCPDump capture into Splunk]
+### 2. [Run SSH brute force with Hydra/Medusa against Metaspolitable port 22.]
+
+[Objective: Simulate a credential-based attack against the target's SSH service to generate authentication attempt logs. This produces the brute force traffic pattern that SOC analysts are trained to detect and investigate.]
+
+# Commands used
+[medusa -h 192.168.79.130 -u msfadmin -P /usr/share/wordlists/rockyou.txt -M ssh -t 4]
+
+<img width="323" height="257" alt="image" src="https://github.com/user-attachments/assets/6411f28a-da43-4d02-8332-f338b1eab575" />
+
+
+[echo -e "msfadmin\nadmin\npassword\n123456\nroot\ntoor" > ~/quick_wordlist.txt]
+
+<img width="323" height="38" alt="image" src="https://github.com/user-attachments/assets/8feb642d-82b9-4e8a-9402-b6b1ff0431a8" />
+
+
+[medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4]
+
+<img width="322" height="148" alt="image" src="https://github.com/user-attachments/assets/8c503311-3d47-459d-b69d-b820af803216" />
+
+
+# Output Explained
+
+During this task I initially attempted to use Hydra, which is the industry standard tool for this type of attack. However Hydra failed with a kex error — a cryptographic key exchange failure caused by an incompatibility between Hydra's modern SSH library (libssh) and Metasploitable's outdated SSH server.Since there was zero overlap between the algorithms both sides support, the connection failed before a single password attempt could be made.
+
+Next I decided to move on to attempting this task with Medusa rather than Hydra because it uses a different underlying SSH implementation that retains support for legacy algorithms, allowing it to negotiate a connection with Metasploitable's old SSH server. However the initial Medusa run using the full rockyou.txt wordlist (14 million passwords) proved impractical. After running for over 20 minutes and reaching 3,000 attempts without a result, I switched to a targeted wordlist containing the most commonly used default credentials.
+
+Using Medusa with a targeted wordlist, the SSH brute force attack against Metasploitable (192.168.79.130) successfully cracked the credentials on the first attempt — username: msfadmin, password: msfadmin. This confirms the target is running default credentials with no account lockout policy, meaning an attacker can attempt unlimited logins without being blocked. In a real environment this would be flagged as two critical findings: default credentials in use and no brute force protection on SSH.
+
+
+
+### 3. [Import TCPDump capture into Splunk]
+[Ingest the raw network capture data into the SIEM to make it searchable and queryable. This step converts raw packet data into indexed events that SPL queries can run against — the foundation of all SIEM-based detection.] 
 
 
 # Command used
-[sudo nmap --script ftp-anon -Pn --disable-arp-ping -n -p 21 192.168.79.130]
+[tcpdump -r ~/lab_capture.pcap -nn -tttt > ~/lab_capture.txt] - converting pcap file to readable format
+
+<img width="423" height="33" alt="image" src="https://github.com/user-attachments/assets/9c7a0e47-49c1-433d-ab55-28ddb98d8b44" />
+
+
+[index=main source="Lab_capture.txt"] -Splunk Search Filter
+
+<img width="856" height="340" alt="image" src="https://github.com/user-attachments/assets/82fb9b77-68b0-497f-9549-9fb540dc5b43" />
 
 
 # Output
 
+After running the TCPDump capture as seen in the first screenshot, I converted the binary pcap file to a human-readable text format using tcpdump -r ~/lab_capture.pcap -nn -tttt > ~/lab_capture.txt. The converted file was 368KB containing all network packets captured during the Nmap scan. The second screenshot shows Splunk parsing real network events from lab_capture.txt including IP addresses, ARP requests and replies, and precise timestamps. This confirms Splunk is now ingesting real attack traffic data generated from the lab environment
 
 
 
-### 3. []
-[] 
+### 4. [Write the SPL to detect the port scan pattern]
+
+[Objective: Build a detection query that identifies port scan activity from the ingested network data. Using regex extraction and event counting, the query surfaces IP addresses generating abnormally high connection volumes the defining characteristic of a port scan.]
 
 
-# Command used
-[]
+#Command/Splunk Search
 
-# Output
+[index=main source="lab_capture.txt" | stats count by host | sort -count] - splunk search
 
+<img width="856" height="344" alt="image" src="https://github.com/user-attachments/assets/42515952-a0d3-4005-ab27-971c8ebe7ec7" />
 
+[index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | sort -count]
 
-
-### 4. []
-
-
-#Command
-[sudo nmap --script vuln -Pn --disable-arp-ping -n 192.168.79.130]
+<img width="857" height="238" alt="image" src="https://github.com/user-attachments/assets/ef7a7048-3cfa-4f78-9a1a-8010c1cb545e" />
 
 # Output
 
+To detect the port scan pattern I ran two SPL searches against the imported TCPDump capture file. The first search index=main source="lab_capture.txt" | stats count by host | sort -count confirmed the data was successfully ingested into Splunk and identified the host machine the capture originated from.
+
+The second search used a regex pattern to extract all IP addresses from the raw TCPDump text and count events per IP: index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | sort -count. This returned 2,571 total events across 4 IP addresses. Kali (192.168.79.129) generated 1,273 events and Metasploitable (192.168.79.130) generated 1,006 events — accounting for the vast majority of all captured traffic.
+
+**Findings**
+
+Together these two searches demonstrate the core SOC analyst workflow — first confirm your data is ingested correctly, then build detection queries on top of it to surface attack patterns. In a real environment this second query would be built into a scheduled alert that fires whenever a single source IP exceeds a defined event threshold within a short time window, giving analysts an automated early warning system for reconnaissance activity.
 
 
-**Findings:** 
-The Vuln script category confirmed and actively exploited the vsftpd 2.3.4 backdoor (CVE-2011-2523) on port 21, achieving root-level command execution. The script ran the shell command id through the backdoor and received uid=0(root) gid=0(root), which is definitive proof of successful remote access. This was the strongest result of any scan in this project, since it moved beyond detection into actual proof of compromise. Notably, this was one of the only scripts in the scan that performed live exploitation. Most other scripts in the "vuln" category only detect and report whether a vulnerability exists, without attempting to exploit it. However, port 21's script is a special case because the vsftpd 2.3.4 backdoor is a well documented, simple command-injection vulnerability that Nmap's script can reliably trigger and verify with a single command. Most other vulnerability scripts test for more complex or riskier conditions, like crashing a service, so they are written to stop at detection rather than attempt exploitation.
 
-### 5. [Document every vuln NSE finds with its severity.]
-For this task I continued to review the vulnerability output that I received in task 4. However, this time I reviewed and  documented each vulnerability that was displayed. I then categorized them by port, service, vulnerability, NSE Script, severity, along with any other notes or important details.
 
+### 5. [Write SPL to detect brute force attempts]
+
+[Objective: Build a detection query that identifies brute force activity from the Medusa output logs. The query extracts credential attempt data and surfaces successful account compromises, demonstrating how a SOC analyst would use Splunk to investigate a suspected brute force incident.]
+
+#commands used:
+
+[medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4 -O ~/medusa_results.txt]
+
+<img width="672" height="87" alt="image" src="https://github.com/user-attachments/assets/e2e44af0-b987-4177-a005-3543a4caed54" />
+
+<img width="803" height="296" alt="image" src="https://github.com/user-attachments/assets/c551f42e-13f2-4df8-8b75-b0ea023b722b" />
+basic detection
+
+<img width="853" height="212" alt="image" src="https://github.com/user-attachments/assets/22bbfd36-9b7a-4380-a723-3c27eea3fe00" />
+Password extraction
 
 ### Output
+
+First, Running index=main source="medusa_results.txt" "ACCOUNT FOUND" returned exactly 1 event — the precise moment the brute force attack succeeded. Splunk filtered through all the Medusa log data and surfaced only the critical event: a successful SSH credential crack against 192.168.79.130 at 12:54:29, confirming username msfadmin with password msfadmin. This is exactly how a SOC analyst would use Splunk during an incident investigation.
+
+The second detection search used a regex(?) pattern to extract the cracked password field from the raw Medusa log data and display it in a structured table alongside its timestamp. Splunk successfully extracted the password 'msfadmin' from the ACCOUNT FOUND event at 12:54:29, demonstrating how SPL can parse unstructured tool output into actionable intelligence. In a real SOC environment this type of search would be used during incident response to quickly identify which credentials were compromised during a brute force attack, allowing the security team to immediately force password resets on affected accounts.
+
+
+
+### 6. [Set Appropriate alert thresholds for each.]
+
+[Objective: Convert the detection queries into automated scheduled alerts with appropriate trigger conditions. This closes the SOC analyst workflow loop. Moving from manual investigation to automated detection that proactively notifies analysts when attack patterns are observed.]
+
+#commands used:
+
+[index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | where count > 100]
+
+<img width="579" height="242" alt="image" src="https://github.com/user-attachments/assets/a9012361-e144-4797-aaf2-e6f597a0b9c3" />
+
+<img width="697" height="265" alt="Screenshot 2026-09-24 204709" src="https://github.com/user-attachments/assets/61142023-7505-4248-8894-f44d943e8a07" />
+
+
+[index=main source="medusa_results.txt" | stats count as total_events, count(eval(match(_raw,"ACCOUNT CHECK"))) as attempts, count(eval(match(_raw,"SUCCESS"))) as successful_cracks]
+
+<img width="860" height="184" alt="Screenshot 2026-09-24 212306" src="https://github.com/user-attachments/assets/1f05bacd-6836-4a83-9a22-e0d290e03850" />
+
+<img width="638" height="152" alt="Screenshot 2026-09-24 212919" src="https://github.com/user-attachments/assets/bea2cd16-309a-4a6c-81c6-696cdbc3e6f2" />
+
+
+Output:
+
+After confirming the port scan detection search returned results showing IPs exceeding the 100 event threshold, I saved the query as a scheduled alert in Splunk titled 'Port Scan Detection'. The alert is configured to run hourly and triggers when the number of results is greater than 0 — meaning any IP generating more than 100 events within the capture data will fire the alert. The action is set to 'Add to Triggered Alerts' which logs the event in Splunk's alert dashboard for analyst review.
+
+The threshold of 100 events was chosen deliberately — normal network traffic between two hosts rarely exceeds this volume in a short window, but a port scan generating thousands of connection attempts will immediately exceed it. In a real SOC environment this alert would be the first line of defense against reconnaissance activity, giving analysts early warning that a host is being mapped before an attacker moves to the exploitation phase.
+
+The brute force detection search analyzed the Medusa output file showing 3 total events from the SSH brute force session. The alert was configured to run every hour and trigger when any results are returned — in a production environment with real authentication logs this same query would detect brute force attempts in near real-time, alerting the SOC team before an attacker can successfully crack credentials.
+
+**Final Findings:** 
+
+This lab completed the full SOC analyst workflow — generate attack traffic, ingest it into a SIEM, build detection queries, and set automated alerts.
+
+One of the most important takeaways connects directly to the previous repository. In the SPL Search Language lab, searches like index=main | stats count by src_ip returned no results — not because the queries were wrong, but because there was nothing meaningful to search through. A static Nmap text file doesn't contain authentication events or structured network fields. This lab fixes that by generating real attack traffic first. The result: 2,571 events from a live port scan and a successful SSH credential crack, all searchable in Splunk. The lesson — a SIEM is only as powerful as the data feeding it. Perfect detection queries mean nothing without the right log sources ingested.
+
+Two attacks were executed and detected. The Nmap port scan produced a clear signature — Kali generating 1,273 events against Metasploitable in a short window — which triggered the Port Scan Detection alert. The Medusa brute force cracked msfadmin:msfadmin in seconds, exposing two critical findings: default credentials and no account lockout policy.
+
+Real-world problem solving was also part of this lab. Hydra failed due to a cryptographic incompatibility with Metasploitable's legacy SSH server — a situation that required switching tools over to Medusa and adapting the approach accordingly.
+
+
+a SOC analyst would use Splunk during an incident investigation by searching for specific indicators like 'ACCOUNT FOUND' or 'SUCCESS' to quickly identify which accounts were compromised without manually reading through thousands of log lines."
+
+
+
 
 Port / Service / Vulnerability / NSE Script / Severity / Notes
 
