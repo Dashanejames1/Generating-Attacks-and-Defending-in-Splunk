@@ -2,15 +2,15 @@
 
 
 **Author:** Dashane James  
-**Lab Environment:** [e.g. VMware Workstation | Kali Linux | Metasploitable 2]  
-**Purpose:** [The goal of this repository is to demonstrate the core SOC analyst workflow of generating attack traffic, ingesting logs into a SIEM, and building detection rules to identify threats. Rather than simply running tools, the focus is on the defensive side. Understanding what attack patterns look like in log data and translating that into actionable Splunk alerts.]
+**Lab Environment:** VMware Workstation | Kali Linux | Metasploitable 2
+**Purpose:** The goal of this repository is to demonstrate the core SOC analyst workflow of generating attack traffic, ingesting logs into a SIEM, and building detection rules to identify threats. Rather than simply running tools, the focus is on the defensive side. Understanding what attack patterns look like in log data and translating that into actionable Splunk alerts.
 **Status:** 🔵 Completed
 
 ---
 
 ## 📋 Overview
 
-[This repository documents a hands-on SOC analyst simulation where real attack traffic was generated in a controlled lab environment and detected using Splunk SIEM. I performed two distinct attack types a network port scan and an SSH brute force attack while simultaneously capturing all network traffic with TCPDump. The captured data was then imported into Splunk where I built SPL detection queries and configured automated alerts to identify both attack patterns. This project demonstrates the complete SOC analyst workflow: generate attack traffic, ingest logs into a SIEM, write detection logic, and set alert thresholds ]
+This repository documents a hands-on SOC analyst simulation where real attack traffic was generated in a controlled lab environment and detected using Splunk SIEM. I performed two distinct attack types a network port scan and an SSH brute force attack while simultaneously capturing all network traffic with TCPDump. The captured data was then imported into Splunk where I built SPL detection queries and configured automated alerts to identify both attack patterns. This project demonstrates the complete SOC analyst workflow: generate attack traffic, ingest logs into a SIEM, write detection logic, and set alert thresholds.
 
 ---
 
@@ -36,37 +36,23 @@
 
 ---
 
-## 📁 Repository Structure
-
-```
-[Repo-Name]/
-├── README.md
-├── [folder-1]/
-│   ├── [file1.txt]        # Description of file
-│   └── [file2.md]         # Description of file
-├── [folder-2]/
-│   ├── [file3.md]         # Description of file
-│   └── [file4.txt]        # Description of file
-└── reports/
-    └── [final-report.md]  # Full assessment report
-```
 
 ---
 
 ## 🔬 Tasks / Assessments Performed
 
-### 1. [Run Nmap scan from Kali while capturing with TCPDump]
+### 1. Run Nmap scan from Kali while capturing with TCPDump
 
-[This tasks required that I generate real network reconnaissance traffic while simultaneously capturing all packets at the network level. This simulates what an attacker's port scan looks like from a packet capture perspective and produces the raw data needed for SIEM analysis.]
+This tasks required that I generate real network reconnaissance traffic while simultaneously capturing all packets at the network level. This simulates what an attacker's port scan looks like from a packet capture perspective and produces the raw data needed for SIEM analysis.
 
 
 # Command used
-[sudo tcpdump -i eth0 -w ~/lab_capture.pcap] -tcp dump
+sudo tcpdump -i eth0 -w ~/lab_capture.pcap -tcp dump
 
 <img width="320" height="184" alt="image" src="https://github.com/user-attachments/assets/4e6c8a16-8562-422e-9b5f-3c80357e89e5" />
 
 
-[sudo nmap -sT -Pn --disable-arp-ping -n 192.168.79.130] - nmap
+sudo nmap -sT -Pn --disable-arp-ping -n 192.168.79.130 - nmap
 
 <img width="346" height="312" alt="image" src="https://github.com/user-attachments/assets/b5a7ba69-4468-438e-a7fd-9fbc2f266900" />
 
@@ -75,24 +61,22 @@
 For this task I opened two terminal windows simultaneously. In the first terminal I started a TCPDump capture using `sudo tcpdump -i eth0 -w ~/lab_capture.pcap`, which began listening on the eth0 network interface and saving all captured packets to a file called lab_capture.pcap. In the second terminal I ran an Nmap scan against Metasploitable (192.168.79.130) while TCPDump was actively capturing in the background. The Nmap scan returned a full list of open ports and services on the target which confirmed the target was live and its attack surface was fully exposed. Once the Nmap scan completed I stopped the TCPDump capture with Ctrl+C, which saved all the network traffic generated during the scan to lab_capture.pcap. This file contains the raw packet-level evidence of the port scan and will be imported into Splunk for analysis. This simulates how a SOC analyst would capture and investigate suspicious network reconnaissance activity.
 
 
+### 2. Run SSH brute force with Hydra/Medusa against Metaspolitable port 22.
 
-
-### 2. [Run SSH brute force with Hydra/Medusa against Metaspolitable port 22.]
-
-[Objective: Simulate a credential-based attack against the target's SSH service to generate authentication attempt logs. This produces the brute force traffic pattern that SOC analysts are trained to detect and investigate.]
+Objective: Simulate a credential-based attack against the target's SSH service to generate authentication attempt logs. This produces the brute force traffic pattern that SOC analysts are trained to detect and investigate.
 
 # Commands used
-[medusa -h 192.168.79.130 -u msfadmin -P /usr/share/wordlists/rockyou.txt -M ssh -t 4]
+medusa -h 192.168.79.130 -u msfadmin -P /usr/share/wordlists/rockyou.txt -M ssh -t 4
 
 <img width="323" height="257" alt="image" src="https://github.com/user-attachments/assets/6411f28a-da43-4d02-8332-f338b1eab575" />
 
 
-[echo -e "msfadmin\nadmin\npassword\n123456\nroot\ntoor" > ~/quick_wordlist.txt]
+echo -e "msfadmin\nadmin\npassword\n123456\nroot\ntoor" > ~/quick_wordlist.txt
 
 <img width="323" height="38" alt="image" src="https://github.com/user-attachments/assets/8feb642d-82b9-4e8a-9402-b6b1ff0431a8" />
 
 
-[medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4]
+medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4
 
 <img width="322" height="148" alt="image" src="https://github.com/user-attachments/assets/8c503311-3d47-459d-b69d-b820af803216" />
 
@@ -107,17 +91,18 @@ Using Medusa with a targeted wordlist, the SSH brute force attack against Metasp
 
 
 
-### 3. [Import TCPDump capture into Splunk]
-[Ingest the raw network capture data into the SIEM to make it searchable and queryable. This step converts raw packet data into indexed events that SPL queries can run against — the foundation of all SIEM-based detection.] 
+### 3. Import TCPDump capture into Splunk
+Ingest the raw network capture data into the SIEM to make it searchable and queryable. This step converts raw packet data into indexed events that SPL queries can run against — the foundation of all SIEM-based detection.
 
 
-# Command used
-[tcpdump -r ~/lab_capture.pcap -nn -tttt > ~/lab_capture.txt] - converting pcap file to readable format
+# Commands used
+
+tcpdump -r ~/lab_capture.pcap -nn -tttt > ~/lab_capture.txt - converting pcap file to readable format
 
 <img width="423" height="33" alt="image" src="https://github.com/user-attachments/assets/9c7a0e47-49c1-433d-ab55-28ddb98d8b44" />
 
 
-[index=main source="Lab_capture.txt"] -Splunk Search Filter
+index=main source="Lab_capture.txt" -Splunk Search Filter
 
 <img width="856" height="340" alt="image" src="https://github.com/user-attachments/assets/82fb9b77-68b0-497f-9549-9fb540dc5b43" />
 
@@ -128,18 +113,18 @@ After running the TCPDump capture as seen in the first screenshot, I converted t
 
 
 
-### 4. [Write the SPL to detect the port scan pattern]
+### 4. Write the SPL to detect the port scan pattern
 
-[Objective: Build a detection query that identifies port scan activity from the ingested network data. Using regex extraction and event counting, the query surfaces IP addresses generating abnormally high connection volumes the defining characteristic of a port scan.]
+Objective: Build a detection query that identifies port scan activity from the ingested network data. Using regex extraction and event counting, the query surfaces IP addresses generating abnormally high connection volumes the defining characteristic of a port scan.
 
 
 #Command/Splunk Search
 
-[index=main source="lab_capture.txt" | stats count by host | sort -count] - splunk search
+index=main source="lab_capture.txt" | stats count by host | sort -count - splunk search
 
 <img width="856" height="344" alt="image" src="https://github.com/user-attachments/assets/42515952-a0d3-4005-ab27-971c8ebe7ec7" />
 
-[index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | sort -count]
+index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | sort -count
 
 <img width="857" height="238" alt="image" src="https://github.com/user-attachments/assets/ef7a7048-3cfa-4f78-9a1a-8010c1cb545e" />
 
@@ -156,13 +141,13 @@ Together these two searches demonstrate the core SOC analyst workflow — first 
 
 
 
-### 5. [Write SPL to detect brute force attempts]
+### 5. Write SPL to detect brute force attempts
 
-[Objective: Build a detection query that identifies brute force activity from the Medusa output logs. The query extracts credential attempt data and surfaces successful account compromises, demonstrating how a SOC analyst would use Splunk to investigate a suspected brute force incident.]
+Objective: Build a detection query that identifies brute force activity from the Medusa output logs. The query extracts credential attempt data and surfaces successful account compromises, demonstrating how a SOC analyst would use Splunk to investigate a suspected brute force incident.
 
 #commands used:
 
-[medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4 -O ~/medusa_results.txt]
+medusa -h 192.168.79.130 -u msfadmin -P ~/quick_wordlist.txt -M ssh -t 4 -O ~/medusa_results.txt
 
 <img width="672" height="87" alt="image" src="https://github.com/user-attachments/assets/e2e44af0-b987-4177-a005-3543a4caed54" />
 
@@ -180,20 +165,20 @@ The second detection search used a regex(?) pattern to extract the cracked passw
 
 
 
-### 6. [Set Appropriate alert thresholds for each.]
+### 6. Set Appropriate alert thresholds for each.
 
-[Objective: Convert the detection queries into automated scheduled alerts with appropriate trigger conditions. This closes the SOC analyst workflow loop. Moving from manual investigation to automated detection that proactively notifies analysts when attack patterns are observed.]
+Objective: Convert the detection queries into automated scheduled alerts with appropriate trigger conditions. This closes the SOC analyst workflow loop. Moving from manual investigation to automated detection that proactively notifies analysts when attack patterns are observed.
 
 #commands used:
 
-[index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | where count > 100]
+index=main source="lab_capture.txt" | rex field=_raw "(?<src_ip>\d+\.\d+\.\d+\.\d+)" | stats count by src_ip | where count > 100
 
 <img width="579" height="242" alt="image" src="https://github.com/user-attachments/assets/a9012361-e144-4797-aaf2-e6f597a0b9c3" />
 
 <img width="697" height="265" alt="Screenshot 2026-09-24 204709" src="https://github.com/user-attachments/assets/61142023-7505-4248-8894-f44d943e8a07" />
 
 
-[index=main source="medusa_results.txt" | stats count as total_events, count(eval(match(_raw,"ACCOUNT CHECK"))) as attempts, count(eval(match(_raw,"SUCCESS"))) as successful_cracks]
+index=main source="medusa_results.txt" | stats count as total_events, count(eval(match(_raw,"ACCOUNT CHECK"))) as attempts, count(eval(match(_raw,"SUCCESS"))) as successful_cracks
 
 <img width="860" height="184" alt="Screenshot 2026-09-24 212306" src="https://github.com/user-attachments/assets/1f05bacd-6836-4a83-9a22-e0d290e03850" />
 
@@ -290,30 +275,15 @@ The table above consolidates all of the findings reported during the Nmap --scri
 
 Based on findings, the following remediations would be recommended in a real environment:
 
-1. **vsFTPd 2.3.4 backdoor (Critical)** — Immediately upgrade or replace the FTP service; this version is known to contain an intentional backdoor and should never be used in production.
-2. **Anonymous FTP login allowed** — Disable anonymous access entirely; require authenticated accounts for any FTP access.
-3. **Telnet enabled (plaintext credentials)** — Disable Telnet and replace with SSH for all remote administration.
-4. **SMB message signing disabled** — Enable SMB message signing to prevent tampering and man-in-the-middle attacks on SMB traffic.
-5. **SQL injection on port 80** — Implement input validation/parameterized queries on the web application, and consider a WAF as an additional layer of defense.
+
 
 ---
-
-## 📚 CySA+ Exam Relevance
-
-This lab directly maps to the following CompTIA CySA+ (CS0-003) exam domains:
-
-| Domain | Coverage |
-
-| Security Operations (33%) | Hands-on use of Nmap and NSE scripts to perform reconnaissance and identify live services and misconfigurations |
-| Vulnerability Management (30%) | Running vulnerability-check scripts (`smb-vuln*`, `vuln`), interpreting results, and cross-referencing CVE/CVSS data from NVD |
-| Incident Response (20%) | Recognizing confirmed exploitation (root access via vsFTPd backdoor) as evidence of active compromise |
-| Reporting & Communication (17%) | Documenting findings by severity in a structured, readable format for technical and non-technical audiences |
 
 ---
 
 ## 🔑 Technical Notes
 
-> # Note: not all NSE vulnerability scripts behave the same way — most only detect and report (true/false), while a small number (like ftp-vsftpd-backdoor) actually attempt live exploitation. Always check script documentation or output carefully rather than assuming uniform behavior.
+> # Note: not all NSE vulnerability scripts behave the same way most only detect and report (true/false), while a small number (like ftp-vsftpd-backdoor) actually attempt live exploitation. Always check script documentation or output carefully rather than assuming uniform behavior.
 >
 > "Always add the -n flag to Nmap scans in this VMware environment to prevent DNS resolution hangs."]
 > 
@@ -358,9 +328,6 @@ sudo nmap --script vuln -Pn --disable-arp-ping -n 192.168.79.130
 
 [1-2 sentences about how this fits into your overall portfolio and career goals.]
 
-This repository is part of my broader cybersecurity portfolio demonstrating practical, hands-on vulnerability assessment skills from initial scanning through confirmed exploitation as I work toward a career as a cybersecurity analyst.
-
-This repository is important because here we have built up to the point of having live proof of the actual exploitation by an automated Nmap script for the CVE-2011-2523. In a past NVD task I researched this exact vulnerability with a CVSS score of 9.8 now this has come full circle and we found out how this exact vulnerability is exploited and root access was acheived. 
 
 
 **Related repositories:**
